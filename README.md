@@ -1,13 +1,111 @@
 # myhkw-downloader — 明月浩空音乐批量下载
 
-从 [myhkw.cn（明月浩空音乐播放器）](https://myhkw.cn) 批量下载音乐的命令行工具。
+从 [myhkw.cn（明月浩空音乐播放器）](https://myhkw.cn) 批量下载音乐的工具，
+提供 **Web 网页界面** 与 **命令行** 两种使用方式（Python 3.9+）。
+
+## 功能特性
 
 - 按 **歌手** / **专辑** / **关键词** / **歌单ID** 四种模式批量下载
-- 多平台来源（网易 / QQ / 酷狗 / 酷我）自动聚合
-- **自动跳过时长 < 1 分钟**（可调）的音频资源，且优先换其他平台找完整版
+- 多平台来源（网易 / QQ / 酷狗 / 酷我）自动聚合，失败自动换源
+- **自动跳过时长 < 1 分钟**（可调）的音频资源，并优先换其他平台找完整版
 - **跨来源去重**：同一首歌在多个平台重复出现时只下载一个版本；
   另有持久化索引 + 文件内容 MD5 双重去重，重复运行不会重新下载
-- 断点续传、请求节流、失败自动换源、可选 LRC 歌词下载
+- 断点续传、请求节流（对公共服务友好）、可选 LRC 歌词下载
+- Web 界面：任务实时日志/进度条、下载前预览清单、音乐库管理 + 内置播放器试听
+
+## 快速开始
+
+```powershell
+# 1. 安装依赖（requests + flask）
+pip install -r requirements.txt
+
+# 2. 建议安装 ffmpeg（时长过滤依赖其中的 ffprobe）
+winget install Gyan.FFmpeg      # 或 scoop install ffmpeg
+
+# 3. 启动网页界面（自动打开浏览器）
+python main.py web
+```
+
+浏览器访问 `http://127.0.0.1:8765` 即可使用；喜欢命令行可直接跳到
+[命令行使用](#命令行使用)。
+
+> 未安装 ffprobe 时仍可正常下载，但「跳过 1 分钟以下音频」功能不可用。
+
+## 网页界面
+
+```powershell
+python main.py web                          # 默认 127.0.0.1:8765，下载目录 ./downloads
+python main.py web --port 9000 -o D:\Music  # 自定义端口与下载目录
+python main.py web --host 0.0.0.0           # 允许局域网访问
+python main.py web --no-browser             # 不自动打开浏览器
+```
+
+| 界面区域 | 功能 |
+|---|---|
+| 新建下载任务 | 四种模式切换；来源多选（网易/QQ/酷狗/酷我）；高级选项：最短时长、数量上限、并发数、请求间隔、目录组织、LRC 歌词、全部同名专辑 |
+| 预览清单 | 正式下载前先搜索一遍，展示命中数量、去重结果与每首歌的可下载来源，已入库曲目会标记「已在库」 |
+| 任务面板 | 进度条 + 实时滚动日志（每首歌的下载/跳过原因），统计新下载、已在库、短音频、重复、失败数量；刷新页面自动接回运行中的任务 |
+| 音乐库 | 浏览全部已入库曲目（时长、大小、来源、歌词标记），支持关键词过滤；内置播放器在线试听（可拖动进度条）；可删除曲目（文件、歌词、索引一并清除） |
+
+说明：为避免并发写索引冲突并控制对公共接口的压力，同一时刻只允许一个下载任务，
+任务运行中再次提交会返回提示。
+
+## 命令行使用
+
+```powershell
+# 1) 按歌手批量下载（多平台聚合，默认 wy/qq/kg）
+python main.py artist 周杰伦 -o downloads
+
+# 2) 按专辑批量下载（--artist 用于排除撞名专辑；默认只取最吻合的一张）
+python main.py album 叶惠美 --artist 周杰伦 --organize album --lrc
+
+# 3) 按关键词搜索下载（去重后取前 N 首）
+python main.py search 晴天 --limit 10
+
+# 4) 按歌单 ID 下载（示例为网易云歌单，一次约可取 200 首）
+python main.py playlist 3778678 --source wy
+
+# 只列清单不实际下载
+python main.py artist 周杰伦 --dry-run
+```
+
+也可以用模块方式运行：`python -m myhkw_dl artist 周杰伦`。
+
+### 常用选项
+
+| 选项 | 说明 |
+|---|---|
+| `-o/--out DIR` | 下载目录（默认 `./downloads`） |
+| `-s/--sources wy qq kg kw` | 来源与优先级；`kw`（酷我）免费账号拿不到真实文件，不建议勾选 |
+| `--min-duration 60` | 时长阈值秒数，低于则跳过（默认 60） |
+| `--limit N` | 本次最多下载 N 首（0 不限） |
+| `--workers 2` | 并发下载数（公共接口，建议 ≤3） |
+| `--delay 1.0` | 相邻下载/探测请求最小间隔秒数 |
+| `--search-delay 0.8` | 相邻搜索翻页请求间隔秒数 |
+| `--lrc` | 同时下载 LRC 歌词 |
+| `--organize flat/artist/album` | 平铺 / 按歌手建目录 / 按专辑建目录 |
+| `--force` | 忽略索引重新下载（内容 MD5 去重仍生效） |
+| `--all-albums` | 专辑模式下下载全部同名专辑版本 |
+| `--base URL --cookie ".."` | 改用注册账号（见下文「原理说明」） |
+| `--log run.log` | 过程写入日志文件 |
+| `--dry-run` | 只列清单 |
+
+## 项目结构
+
+```
+├── main.py                  # 入口
+├── requirements.txt         # requests + flask
+└── myhkw_dl/
+    ├── api.py               # myhkw 接口封装（搜索/取流/歌词）与会话管理
+    ├── core.py              # 下载编排：搜索规划、候选去重、时长过滤、断点续传
+    ├── dedup.py             # 逻辑键 + MD5 内容哈希 + 持久化索引
+    ├── probe.py             # ffprobe 时长探测（远程 / 本地）
+    ├── cli.py               # 命令行（artist/album/search/playlist/web）
+    └── web/
+        ├── app.py           # Flask 路由（任务/预览/曲库/媒体流）
+        ├── service.py       # 后台任务调度与曲库服务
+        └── static/index.html  # 单页前端（深色主题，无外部依赖）
+```
 
 ## 原理说明
 
@@ -18,74 +116,11 @@
 | 接口 | 作用 |
 |---|---|
 | `GET /action/search?myhkid=..&key=..&type=wy&page=..&limit=..` | 搜索（type 为 wy/qq/kg/kw，加 `gd` 后缀 = 按歌单ID 取歌） |
-| `GET /api/url?song=..&type=..&id=..&sign=..` | 取/下载 MP3（`sign` 来自搜索结果） |
+| `GET /api/url?song=..&type=..&id=..&sign=..` | 取/下载 MP3（`sign` 来自搜索结果，支持 Range 断点续传） |
 | `GET /api/lyrics?song=..&type=..&id=..&sign=..` | 取 LRC 歌词 |
 
 若你注册了正式账号，也可以用 `--base https://myhkw.cn --cookie "myhkid=..; PHPSESSID=.."`
 （Cookie 从已登录的浏览器复制），获得更高的配额。
-
-## 安装
-
-```powershell
-pip install -r requirements.txt
-# 时长过滤依赖 ffmpeg 的 ffprobe（建议安装并加入 PATH）：
-#   winget install Gyan.FFmpeg   或   scoop install ffmpeg
-```
-
-未安装 ffprobe 时仍可下载，但“跳过 1 分钟以下音频”功能不可用。
-
-## 网页界面（推荐）
-
-```powershell
-python main.py web                 # 默认 http://127.0.0.1:8765 ，自动打开浏览器
-python main.py web --port 9000 -o D:\Music   # 自定义端口与下载目录
-```
-
-界面功能：
-
-- 四种模式（歌手 / 专辑 / 关键词 / 歌单ID）+ 来源、时长阈值、并发、歌词等全部选项
-- **预览清单**：正式下载前先看命中与去重结果
-- **实时日志与进度**：任务运行中滚动输出每首歌的处理结果（下载/跳过原因）
-- **音乐库**：浏览已入库曲目（时长、大小、来源、歌词标记），内置播放器在线试听
-  （支持拖动进度条），可删除曲目（连同文件、歌词与索引记录）
-
-## 命令行使用
-
-```powershell
-# 1) 按歌手批量下载（四个平台聚合，默认 wy/qq/kg）
-python main.py artist 周杰伦 -o downloads
-
-# 2) 按专辑批量下载（--artist 用于排除撞名专辑；只取最吻合的一张）
-python main.py album 叶惠美 --artist 周杰伦 --organize album --lrc
-
-# 3) 按关键词搜索下载（去重后取前 N 首）
-python main.py search 晴天 --limit 10
-
-# 4) 按歌单 ID 下载（此处为网易云歌单 ID）
-python main.py playlist 3778678 --source wy
-```
-
-先看看会下载什么，不真正下载：
-
-```powershell
-python main.py artist 周杰伦 --dry-run
-```
-
-### 常用选项
-
-| 选项 | 说明 |
-|---|---|
-| `-s/--sources wy qq kg kw` | 来源与优先级；`kw`（酷我）免费账号拿不到真实文件，不建议 |
-| `--min-duration 60` | 时长阈值秒数（默认 60） |
-| `--limit N` | 本次最多下载 N 首 |
-| `--workers 2` | 并发下载数（公共接口，建议 ≤3） |
-| `--delay 1.0` | 相邻网络请求最小间隔（对公共服务的礼貌节流） |
-| `--lrc` | 同时下载歌词 |
-| `--organize flat/artist/album` | 平铺 / 按歌手建目录 / 按专辑建目录 |
-| `--force` | 忽略索引重新下载（内容 MD5 去重仍生效） |
-| `--all-albums` | 专辑模式下下载全部同名专辑版本 |
-| `--log run.log` | 过程写入日志 |
-| `--dry-run` | 只列清单 |
 
 ## 去重策略
 
@@ -93,22 +128,26 @@ python main.py artist 周杰伦 --dry-run
    版本标注）相同 → 视为同一首歌，只保留第一个成功来源（按 `--sources` 优先级）。
 2. **内容哈希**：下载完成后计算 MD5，与库中任何文件内容相同 → 删除不保留
    （应对不同歌名指向同一文件的情况）。
-3. **持久索引**：`<下载目录>/.myhkw_library.json`，下次运行自动跳过已入库曲目。
+3. **持久索引**：`<下载目录>/.myhkw_library.json`，下次运行自动跳过已入库曲目；
+   Web 音乐库即读取该索引。
 
 ## 时长过滤策略
 
 1. 下载前对播放地址直接 `ffprobe` 探测（服务器支持 Range，几 KB 即可完成），
    短于阈值直接跳过、不浪费流量；
-2. 若该来源是短版本（如酷我免费账号返回占位静音片段），会自动**换下一个来源**
+2. 若该来源是短版本（如酷我免费账号返回的占位静音片段），会自动**换下一个来源**
    再探测/下载；
-3. 远程探测失败时回退：下载完成后本地复检，不足 1 分钟则删除。
+3. 远程探测失败时回退：下载完成后本地复检，不足阈值则删除。
 
 ## 常见问题
 
-- **某首歌所有来源都失败**：该平台该曲目需要 VIP/付费，工具会自动尝试其他来源。
+- **某首歌所有来源都失败**：该曲目在相应平台需要 VIP/付费，工具会自动尝试其他来源。
 - **搜索结果不够全**：网页接口单次关键词最多返回 50 条；想要歌手完整作品库，
-  建议把该歌手的“热门专辑”用 `album` 模式逐张下载，或用 `playlist` 模式
+  建议把该歌手的热门专辑用 `album` 模式逐张下载，或用 `playlist` 模式
   传入平台歌单 ID（一次可取约 200 首）。
+- **酷我(kw)下载的都是几秒的静音**：免费账号无酷我下载权限，属预期行为；
+  工具会将其判为短音频并自动换源。
+- **网页打不开/端口占用**：`python main.py web --port 其他端口`。
 - **换代理/超时**：`--base` 可指向站点任意可用镜像；网络失败会自动重试其他版本。
 
 ## 免责声明
