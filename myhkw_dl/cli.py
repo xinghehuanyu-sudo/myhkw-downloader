@@ -160,11 +160,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         log("没有匹配的曲目。")
         return 1
     log(f"\n去重后共 {len(candidates)} 首：")
+    for i, c in enumerate(candidates, 1):
+        vers = "/".join(sorted({v.source for v in c.versions}))
+        log(f"  {i:3d}. {c.display}  (可下载来源: {vers})")
 
     if args.dry_run:
-        for i, c in enumerate(candidates, 1):
-            vers = "/".join(sorted({v.source for v in c.versions}))
-            log(f"  {i:3d}. {c.display}  (可下载来源: {vers})")
         return 0
 
     store = DedupStore(f"{args.out}/.myhkw_library.json")

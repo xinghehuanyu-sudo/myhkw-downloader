@@ -170,7 +170,14 @@ class TaskRunner:
             if limit > 0:
                 cands = cands[:limit]
             task.set_total(len(cands))
-            task.log(f"去重后共 {len(cands)} 首待处理")
+            task.log(f"去重后共 {len(cands)} 首待处理：")
+            for i, c in enumerate(cands[:300], 1):
+                t0 = c.versions[0]
+                srcs = "/".join(sorted({v.source for v in c.versions}))
+                task.log(f"  {i:3d}. {t0.artist} - {t0.title}"
+                         f"《{t0.album or '无专辑'}》 [{srcs}]")
+            if len(cands) > 300:
+                task.log(f"  …（其余 {len(cands) - 300} 首省略）")
             if not cands:
                 task.finish("done", {})
                 return
