@@ -171,17 +171,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.force:
         store._keys.clear()
 
-    factory = None
-    if args.workers > 1:
-        def factory() -> MyhkwClient:
-            return MyhkwClient(base=args.base, cookie=args.cookie,
-                               account=client.account)
+    def factory() -> MyhkwClient:
+        return MyhkwClient(base=args.base, cookie=args.cookie,
+                           account=client.account)
 
     mgr = DownloadManager(
         client, args.out, store,
         ffprobe=probe, min_dur=args.min_duration if probe else 0.0,
         with_lrc=args.lrc, organize=args.organize,
-        limiter=RateLimiter(args.delay), client_factory=factory, log=log)
+        limiter=RateLimiter(args.delay),
+        client_factory=factory if args.workers > 1 else None, log=log)
 
     log("")
     stats = mgr.run(candidates, workers=max(1, args.workers))

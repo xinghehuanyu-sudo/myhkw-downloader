@@ -182,12 +182,11 @@ class TaskRunner:
                 task.finish("done", {})
                 return
             store = DedupStore(os.path.join(self.outdir, LIB_NAME))
-            factory = None
+            def factory() -> MyhkwClient:
+                return _make_client(self.base, self.cookie,
+                                    account=client.account)
+
             workers = max(1, int(p.get("workers", 1)))
-            if workers > 1:
-                def factory() -> MyhkwClient:
-                    return _make_client(self.base, self.cookie,
-                                        account=client.account)
             mgr = DownloadManager(
                 client, self.outdir, store,
                 ffprobe=probe,
@@ -195,7 +194,7 @@ class TaskRunner:
                 with_lrc=bool(p.get("lrc")),
                 organize=p.get("organize", "flat"),
                 limiter=RateLimiter(float(p.get("delay", 1.0))),
-                client_factory=factory,
+                client_factory=factory if workers > 1 else None,
                 log=task.log,
             )
             stats = mgr.run(cands, workers=workers, progress=task.set_progress)

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Iterable, Iterator, Optional
+from typing import Iterator, Optional
 
 import requests
 
@@ -138,12 +138,6 @@ class MyhkwClient:
             mp3_sign=row.get("mp3") or "",
             lrc_sign=row.get("lyrics") or "",
         )
-
-    def search_sources(self, key: str, sources: Iterable[str],
-                       playlist: bool = False, delay: float = 0.8) -> Iterator[Track]:
-        for src in sources:
-            yield from self.search(key, src, playlist=playlist, delay=delay)
-            time.sleep(delay)
 
     # ---------- 播放地址 / 下载 ----------
 
